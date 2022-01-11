@@ -14,10 +14,8 @@ Chạy client
 
 ## Hướng dẫn sử dụng
 
-ls: xem danh sách file, folder trong thư mục
+* ls: xem danh sách file, folder trong thư mục
+* cd : di chuyển đến thư mục
 
-cd : di chuyển đến thư mục
-
-upload: tải file lên server
-
-download: tải xuống file từ server xuống client
+* upload: tải file lên server
+* download: tải xuống file từ server xuống client
