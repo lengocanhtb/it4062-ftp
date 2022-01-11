@@ -2,15 +2,25 @@
 
 ## Cách cài đặt
 
-> make
+```
+make
+```
+
+make
 
 Chạy server: 
 
-> ./server Port (vd: ./server 5500)
+```
+./server Port (vd: ./server 5500)
+```
 
 Chạy client
 
-> ./client IP Port (vd: ./client 127.0.0.1 5500)
+.
+
+```
+/client IP Port (vd: ./client 127.0.0.1 5500)
+```
 
 ## Hướng dẫn sử dụng
 
