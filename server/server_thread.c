@@ -396,76 +396,83 @@ void *Accept_Client(void *recfd) {
   char *buffer = malloc(sizeof(char) * buffer_size);
   // current_path: đường dẫn hiện tại
   char *current_path = malloc(sizeof(char) * 2);
-  // strcpy(current_path, ".");     
+  // strcpy(current_path, "./test");     
   node_a *found;
 	node_a *account_list = loadData(filename);
   // Read-Evaluate-Print Loop
   // vòng lặp đọc-thực thi-in
+  int login = 0;
   while (true) {
-    // pass
-    if (0 >= (bytes_received = recv((int)recfd,username,MAX-1,0))){
-      printf("Connection closed\n");
-      break;
-    }
-    username[bytes_received] = '\0';
-
-    // check username exist
-    if (found = findNode(account_list,username))
+    // login
+    if (0 == login)
     {
-      if (found->status == 1)
-      {
-        reply = "1";
+      if (0 >= (bytes_received = recv((int)recfd,username,MAX-1,0))){
+        printf("Connection closed\n");
+        break;
       }
-      else reply = "2";      
-    }
-    else
-    {
-      reply = "0";
-    }
+      username[bytes_received] = '\0';
 
-    if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)))
-    {
-      printf("\Connection closed\n");
-      break;
+      // check username exist
+      if (found = findNode(account_list,username))
+      {
+        if (found->status == 1)
+        {
+          reply = "1";
+        }
+        else reply = "2";      
+      }
+      else
+      {
+        reply = "0";
+      }
+
+      if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)))
+      {
+        printf("\Connection closed\n");
+        break;
+      }
+      
+      int count = 0;
+
+      while (1)
+      {
+        // receive pass
+        memset(pass,'\0',MAX);
+        if (0 >= (bytes_received = recv((int)recfd,pass,MAX-1,0)))
+        {
+          printf("\nConnection closed\n");
+          break;
+        }
+        pass[bytes_received] = '\0';
+
+        // validate pass
+        if (0 == strcmp(found->pass,pass))
+        {
+          reply = "1";
+          login = 1;
+        }
+        else {
+          count++;
+          if (count == 3)
+          {
+            reply = "2";
+            found->status = 0;
+          }
+          else reply="0";  
+        }
+
+        if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)));
+        {
+          printf("\n%s is connected\n",username);
+          break;
+        }  
+      }
+      saveData(account_list,"account.txt");
+      // cấp thư mục
     }
     
-    int count = 0;
-
-    while (1)
-    {
-      // receive pass
-      memset(pass,'\0',MAX);
-      if (0 >= (bytes_received = recv((int)recfd,pass,MAX-1,0)))
-      {
-        printf("\nConnection closed\n");
-        break;
-      }
-      pass[bytes_received] = '\0';
-
-      // validate pass
-      if (0 == strcmp(found->pass,pass))
-      {
-        reply = "1";
-      }
-      else {
-        count++;
-        if (count == 3)
-        {
-          reply = "2";
-          found->status = 0;
-        }
-        else reply="0";  
-      }
-
-      if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)));
-      {
-        printf("\n%s is connected\n",username);
-        break;
-      }  
-    }
-    saveData(account_list,"account.txt");
-    // cấp thư mục
-    strcpy(current_path, ".")
+    
+    strcpy(current_path, "./test");
       
     // Recieve message
     // in ra VD: (4)terminated
