@@ -14,20 +14,79 @@
 
 #define PortNumber 5555
 #define MaxClient 20
+#define MAX 100
 
 int sock; //listenfd for server;
+
+typedef struct node
+{
+  char username[MAX];
+  char pass[MAX];
+  int status;
+  struct node *next;
+} node_a;
+
+// file -> linked list 
+node_a *loadData(char *filename){
+	int status, count =0;
+	FILE *f;
+	char username[MAX], pass[MAX];
+	node_a *head, *current;
+	head = current = NULL;
+
+	printf("Loading data...\n");
+	// open file
+	if((f = fopen(filename,"r"))==NULL){
+		printf("Failed to open file");
+		exit(0);
+	}
+
+	//data -> linked list
+	while(fscanf(f,"%s %s %d\n", username,pass,&status) != EOF){
+		node_a *node = malloc(sizeof(node_a));
+		strcpy(node->username, username);
+		strcpy(node->pass,pass);
+		node->status = status;
+
+		if(head == NULL)
+			current = head = node;
+		else
+			current = current->next = node;
+		count++;
+	}
+
+	fclose(f);
+	printf("Successfully loaded %d account(s)\n",count);
+	return head;
+}
+
+//find account
+node_a *findNode(node_a *head, char *username){
+	node_a *current = head;
+	while(current != NULL){
+		if (0 == strcmp(current->username, username))
+			return current;
+		current = current->next;
+	}
+
+	return NULL;
+}
+
+// linked list -> file
+void saveData(node_a *head, char *filename){
+	FILE *f;
+	f = fopen(filename,"w");
+	node_a *current;
+	for (current = head; current; current = current->next)
+		fprintf(f, "%s %s %d\n", current->username, current->pass, current->status);
+	fclose(f);
+}
+
 
 // xem command str có bắt đầu bằng xâu pre (VD begin_with(command,"ls") trả về 1 nếu command bắt đầu bằng ls)
 int begin_with(const char *str, const char *pre) {
   size_t lenpre = strlen(pre), lenstr = strlen(str);
   return lenstr < lenpre ? 0 : memcmp(pre, str, lenpre) == 0;
-}
-
-// ???? //
-// handle signint 
-void handle_sigint() {
-  close(sock);
-  printf("Server Terminated\n");
 }
 
 // gửi thông điệp (phản hồi) lại client
@@ -297,9 +356,10 @@ void server_upload(int recfd, char *target_file, char **current_path) {
 
 void server_process(int recfd, char *full_command, char **current_path) {
   // Prepare
-  char *delim = " ";
-  char *command = strtok(full_command, delim);
-  char *context = strtok(NULL, delim);
+  char *delim = " "; //dấu cách phân định command
+  // strtok: Chia 1 chuỗi dài thành các chuỗi nhỏ được phân biệt riêng rẽ bởi các ký tự đặc biệt được chọn.
+  char *command = strtok(full_command, delim); //lấy phần đầu của command (ls,cd,...)
+  char *context = strtok(NULL, delim); //phần sau của command
   char *response = malloc(sizeof(char) * 1024);
 
   // Process
@@ -316,6 +376,7 @@ void server_process(int recfd, char *full_command, char **current_path) {
   } else {
     strcpy(response, "No such command: ");
     strcat(response, command);
+    // gửi thông điệp (phản hồi) lại client
     respond(recfd, response);
   }
 
@@ -327,22 +388,98 @@ void *Accept_Client(void *recfd) {
 
   // Initialize Buffer, Response, FDs
   int buffer_size = 1024;
+  
+  char username[MAX],pass[MAX], *reply;
+  int bytes_sent, bytes_received;
+  char filename[] = "account.txt";
+  // buffer: thông điệp trao đổi (command)
   char *buffer = malloc(sizeof(char) * buffer_size);
+  // current_path: đường dẫn hiện tại
   char *current_path = malloc(sizeof(char) * 2);
-  strcpy(current_path, ".");
-
+  // strcpy(current_path, ".");     
+  node_a *found;
+	node_a *account_list = loadData(filename);
   // Read-Evaluate-Print Loop
+  // vòng lặp đọc-thực thi-in
   while (true) {
-    // Recieve
+    // pass
+    if (0 >= (bytes_received = recv((int)recfd,username,MAX-1,0))){
+      printf("Connection closed\n");
+      break;
+    }
+    username[bytes_received] = '\0';
+
+    // check username exist
+    if (found = findNode(account_list,username))
+    {
+      if (found->status == 1)
+      {
+        reply = "1";
+      }
+      else reply = "2";      
+    }
+    else
+    {
+      reply = "0";
+    }
+
+    if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)))
+    {
+      printf("\Connection closed\n");
+      break;
+    }
+    
+    int count = 0;
+
+    while (1)
+    {
+      // receive pass
+      memset(pass,'\0',MAX);
+      if (0 >= (bytes_received = recv((int)recfd,pass,MAX-1,0)))
+      {
+        printf("\nConnection closed\n");
+        break;
+      }
+      pass[bytes_received] = '\0';
+
+      // validate pass
+      if (0 == strcmp(found->pass,pass))
+      {
+        reply = "1";
+      }
+      else {
+        count++;
+        if (count == 3)
+        {
+          reply = "2";
+          found->status = 0;
+        }
+        else reply="0";  
+      }
+
+      if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)));
+      {
+        printf("\n%s is connected\n",username);
+        break;
+      }  
+    }
+    saveData(account_list,"account.txt");
+    // cấp thư mục
+    strcpy(current_path, ".")
+      
+    // Recieve message
+    // in ra VD: (4)terminated
     if ((recv((int)recfd, buffer, buffer_size, 0)) < 1) {
-      fprintf(stderr, "(%d) Terminated", (int)recfd);
+      fprintf(stderr, "(%s) Terminated", username);
       perror("");
       close((int)recfd);
       break;
     }
 
     // Evaluate
-    printf("(%d) Command: %s\n", (int)recfd, buffer);
+    // in ra command đã nhận
+    printf("(%s) Command: %s\n", username, buffer);
+    // thực thi command
     server_process((int)recfd, buffer, &current_path);
   }
 
@@ -381,7 +518,7 @@ int main(int argc, const char *argv[]) {
   // Start Listening
   if ((listen(sock, MaxClient)) == -1) {
     perror("\nError:");
-    // close(sock);
+    // close(sock);s
     // exit(errno);
     return 0;
   }
