@@ -11,24 +11,258 @@
 #include <sys/types.h>  // socket()
 #include <unistd.h>     // close()
 #include <ctype.h>
+#include <sys/stat.h>   //mkdir()
 
 #define MaxClient 20
 #define MAX 100
 
 int sock; //listenfd for server;
-
 typedef struct node
 {
   char username[MAX];
   char pass[MAX];
-  int status;
+  // int status;
   char folder[MAX];
   struct node *next;
 } node_a;
 
+void sig_chld(int signo);
+node_a *loadData(char *filename);
+node_a *findNode(node_a *head, char *username);
+void saveData(node_a *head, char *filename);
+int begin_with(const char *str, const char *pre);
+int respond(int recfd, char response[]);
+void server_ls(int recfd, char *response, char **current_path);
+void server_cd(int recfd, char *open_dir, char *response, char **current_path);
+void server_download(int recfd, char *target_file, char **current_path);
+void server_upload(int recfd, char *target_file, char **current_path);
+void server_mkdir(int recfd,char *new_dir, char *respond, char **current_path);
+void server_process(int recfd, char *full_command, char **current_path);
+
+
+int main(int argc, const char *argv[]) {
+  // check argument
+ 	if(argc != 2){
+ 		printf("Invalid argument\n\n");
+ 		return 0;
+ 	}
+
+  char username[MAX],pass[MAX],folder[MAX], *reply;
+  int bytes_sent, bytes_received;
+  char filename[] = "account.txt";
+  char str[MAX];
+
+  // Initialize Addresses
+  struct sockaddr_in server_addr, client_addr;
+  socklen_t client_addr_length = sizeof(client_addr);
+  bzero(&server_addr, sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_port = htons(atoi(argv[1]));
+  server_addr.sin_addr.s_addr = INADDR_ANY;
+  int pid;
+
+  node_a *found;
+	node_a *account_list = loadData(filename);
+
+  // menu
+  int chon = 0;
+  do
+  {
+      // system("clear");
+      printf("\t\t\t ============MENU===========\n");
+      printf("\t\t\t |1. Create a client        |\n");
+      printf("\t\t\t |2. Show all clients       |\n");
+      printf("\t\t\t |3. Update clients         |\n");
+      printf("\t\t\t |4. Start server           |\n");
+      printf("\t\t\t |5. Delete client          |\n");
+      printf("\t\t\t |6. Exit                   |\n");
+      printf("\t\t\t ===========================\n");
+      printf("Enter your choice: ");
+      scanf("%d", &chon);
+      switch(chon)
+      {
+          case 1:
+              
+            break;
+          case 2:
+              
+            break;
+          case 3:
+              
+            break;
+          case 4:
+            // start server
+            // Create Socket
+            if ((sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+              // perror("Create socket error");
+              // exit(errno);
+              perror("\nError: ");
+              return 0;
+            }
+
+            // Bind Socket to Address
+            if ((bind(sock, (struct sockaddr *)&server_addr, sizeof(server_addr))) == -1) {
+              perror("Binding error");
+              // close(sock);
+              // exit(errno);
+              return 0;
+            }
+
+            // Start Listening
+            if ((listen(sock, MaxClient)) == -1) {
+              perror("\nError:");
+              // close(sock);s
+              // exit(errno);
+              return 0;
+            }
+            signal(SIGCHLD, sig_chld);
+
+            // Start Accepting
+            printf("Start Listening\n");
+            while (1) {
+              // int *recfd = malloc(sizeof(int));
+              void *recfd = accept(sock, (struct sockaddr *)&client_addr, &client_addr_length);
+              if ((int)recfd == -1) {
+                perror("Accept error");
+                continue;
+              }
+
+              pid = fork();
+              if (pid < 0)
+              {
+                perror("Error: ");
+                return 1;
+              }
+              
+              if (pid == 0)
+              {    
+                // Initialize Buffer, Response, FDs
+                int buffer_size = 1024;
+                // buffer: thông điệp trao đổi (command)
+                char *buffer = malloc(sizeof(char) * buffer_size);
+                // current_path: đường dẫn hiện tại
+                char *current_path = malloc(sizeof(char) * 2);   
+                
+                int login = 0,path = 0;
+                strcpy(current_path,".");
+                while (0 == login) {
+                  if (0 >= (bytes_received = recv((int)recfd,username,MAX-1,0))){
+                    printf("Connection closed\n");
+                    break;
+                  }
+                  username[bytes_received] = '\0';
+
+                  // check username exist
+                  if (found = findNode(account_list,username))
+                  { 
+                    reply = "1";    
+                  }
+                  else
+                  {
+                    reply = "0";
+                  }
+
+                  if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)))
+                  {
+                    printf("\Connection closed\n");
+                    break;
+                  }
+
+                  while (1)
+                  {
+                    // receive pass
+                    memset(pass,'\0',MAX);
+                    if (0 >= (bytes_received = recv((int)recfd,pass,MAX-1,0)))
+                    {
+                      printf("\nConnection closed\n");
+                      break;
+                    }
+                    pass[bytes_received] = '\0';
+
+                    // validate pass
+                    if (0 == strcmp(found->pass,pass))
+                    {
+                      reply = "1";
+                      login = 1;
+                    }
+                    else {
+                      reply="0";  
+                    }
+
+                    if (0 >= (bytes_sent = send((int)recfd,reply,strlen(reply),0)));
+                    {
+                      printf("\n%s is try to connect\n",username);
+                      break;
+                    }  
+                  }
+                }
+                while (path == 0)
+                {
+                  /* code */
+                  strcat(current_path,"/");
+                  strcat(current_path,found->folder);
+                  if (0 >= (bytes_sent = send((int)recfd,current_path,strlen(current_path),0)));
+                  {
+                    printf("\n%s failed to send folder\n",username);
+                    break;
+                  }
+                  path = 1;
+                }
+
+                // Read-Evaluate-Print Loop
+                // vòng lặp đọc-thực thi-in
+                while (true) {
+                  printf("\n%s is connecting...\n",username);
+                  // cấp folder
+                  
+    
+                  // Recieve message
+                  // in ra VD: (4)terminated
+                  
+                  printf("Current path: %s\n",current_path);
+                  if ((recv((int)recfd, buffer, buffer_size, 0)) < 1) {
+                    fprintf(stderr, "(%s) Terminated", username);
+                    perror("");
+                    close((int)recfd);
+                    break;
+                  }
+
+                  // Evaluate
+                  // in ra command đã nhận
+                  printf("(%s) Command: %s\n", username, buffer);
+                  // thực thi command
+                  server_process((int)recfd, buffer, &current_path);
+                }
+
+                // Clean Up
+                free(buffer);
+                free(current_path);
+                close((int)recfd);
+              }
+              else
+              {
+                close((int)recfd);
+              }  
+            }
+            close(sock);
+            break;
+          case 5:
+              
+              break;
+          case 6:
+              break;
+          default:
+              printf("Ban chon sai. Moi ban chon lai MENU!\n");
+              break;
+      }
+  }while(chon!=6);  
+  return 0;
+}
+
 // file -> linked list 
 node_a *loadData(char *filename){
-	int status, count =0;
+	// int status; 
+  int count =0;
 	FILE *f;
 	char username[MAX], pass[MAX], folder[MAX];
 	node_a *head, *current;
@@ -42,12 +276,11 @@ node_a *loadData(char *filename){
 	}
 
 	//data -> linked list
-	while(fscanf(f,"%s %s %s %d\n", username,pass,folder,&status) != EOF){
+	while(fscanf(f,"%s %s %s\n", username,pass,folder) != EOF){
 		node_a *node = malloc(sizeof(node_a));
 		strcpy(node->username, username);
 		strcpy(node->pass,pass);
     strcpy(node->folder,folder);
-		node->status = status;
 
 		if(head == NULL)
 			current = head = node;
@@ -79,10 +312,9 @@ void saveData(node_a *head, char *filename){
 	f = fopen(filename,"w");
 	node_a *current;
 	for (current = head; current; current = current->next)
-		fprintf(f, "%s %s %s %d\n", current->username, current->pass,current->folder, current->status);
+		fprintf(f, "%s %s %s\n", current->username, current->pass,current->folder);
 	fclose(f);
 }
-
 
 // xem command str có bắt đầu bằng xâu pre (VD begin_with(command,"ls") trả về 1 nếu command bắt đầu bằng ls)
 int begin_with(const char *str, const char *pre) {
@@ -93,7 +325,7 @@ int begin_with(const char *str, const char *pre) {
 // gửi thông điệp (phản hồi) lại client
 int respond(int recfd, char response[]) {
   if ((send(recfd, response, strlen(response) + 1, 0)) == -1) {
-    fprintf(stderr, "Can't send packet\n", recfd);
+    fprintf(stderr, "Can't send packet\n");
     return errno;
   }
   return 0;
@@ -102,12 +334,13 @@ int respond(int recfd, char response[]) {
 // xem cac tep trong thu muc (~lenh ls trong ubuntu) 
 void server_ls(int recfd, char *response, char **current_path) {
   // Open Directory
+  fprintf(stderr, "Current path: %s\n", *current_path);
   DIR *current_fd;
   if ((current_fd = opendir(*current_path)) == NULL)// opendir return pointer to directory stream and on error NUll
   {
     strcpy(response, "@Can't open ");
     strcat(response, *current_path);  //send to client 
-    fprintf(stderr, "Can't open %s", recfd, *current_path); //remain in server
+    fprintf(stderr, "Can't open %s", *current_path); //remain in server
     perror("");
     return;
   }
@@ -151,7 +384,7 @@ void server_ls(int recfd, char *response, char **current_path) {
 
   // Close Directory
   if (closedir(current_fd) < 0) {
-    fprintf(stderr, "Directory Close Error", recfd);
+    fprintf(stderr, "Directory Close Error");
     perror("");
   }
 }
@@ -190,7 +423,7 @@ void server_cd(int recfd, char *open_dir, char *response, char **current_path) {
   if ((open_dir_fd = opendir(*current_path)) == NULL) {
     strcpy(response, "@can't open");
     strcat(response, *current_path);
-    fprintf(stderr, "Can't open %s", recfd, *current_path);
+    fprintf(stderr, "(%d) Can't open %s", recfd, *current_path);
     perror("");
     return;
   }
@@ -226,7 +459,7 @@ void server_cd(int recfd, char *open_dir, char *response, char **current_path) {
 
   // Close Directory
   if (closedir(open_dir_fd) < 0) {
-    fprintf(stderr, "Directory Close Error", recfd);
+    fprintf(stderr, "(%d) Directory Close Error", recfd);
     perror("");
   }
 }
@@ -244,7 +477,7 @@ void server_download(int recfd, char *target_file, char **current_path) {
   FILE *fd;
   if ((fd = fopen(full_path, "rb")) == NULL) {
     respond(recfd, "@file open error");
-    fprintf(stderr, "Can't open %s", recfd, full_path);
+    fprintf(stderr, "Can't open %s", full_path);
     perror("");
     return;
   }
@@ -256,7 +489,7 @@ void server_download(int recfd, char *target_file, char **current_path) {
   sprintf(buffer, "%ld", ftell(fd)); // ftell(fd) current position
   ssize_t byte_sent = send(recfd, buffer, strlen(buffer) + 1, 0);
   if (byte_sent == -1) {
-    fprintf(stderr, "Can't send packet", recfd);
+    fprintf(stderr, "Can't send packet");
     perror("");
     fclose(fd);
     return;
@@ -266,7 +499,7 @@ void server_download(int recfd, char *target_file, char **current_path) {
   // Wait for client to be ready
   ssize_t byte_received = recv(recfd, buffer, sizeof(buffer), 0);
   if (byte_received == -1) {
-    fprintf(stderr, "Can't receive packet", recfd);
+    fprintf(stderr, "Can't receive packet");
     perror("");
     fclose(fd);
     return;
@@ -276,13 +509,13 @@ void server_download(int recfd, char *target_file, char **current_path) {
   while ((chunk_size = fread(buffer, 1, sizeof(buffer), fd)) > 0) {
     ssize_t byte_sent = send(recfd, buffer, chunk_size, 0);
     if (byte_sent == -1) {
-      fprintf(stderr, "Can't send packet", recfd);
+      fprintf(stderr, "Can't send packet");
       perror("");
       fclose(fd);
       return;
     }
   }
-  printf("Transmited: %s\n", recfd, target_file);
+  printf("Transmited: %s\n", target_file);
   fclose(fd);
 }
 
@@ -298,7 +531,7 @@ void server_upload(int recfd, char *target_file, char **current_path) {
   FILE *fd;
   if ((fd = fopen(full_path, "wb")) == NULL) {
     respond(recfd, "@file open error");
-    fprintf(stderr, "Can't open %s", recfd, *current_path);
+    fprintf(stderr, "Can't open %s",*current_path);
     perror("");
     return;
   }
@@ -308,14 +541,14 @@ void server_upload(int recfd, char *target_file, char **current_path) {
   strcpy(buffer, "size?");
   ssize_t byte_sent = send(recfd, buffer, strlen(buffer) + 1, 0);
   if (byte_sent == -1) {
-    fprintf(stderr, "Can't send packet", recfd);
+    fprintf(stderr, "Can't send packet");
     perror("");
     fclose(fd);
     return;
   }
   ssize_t byte_received = recv(recfd, buffer, sizeof(buffer), 0);
   if (byte_received == -1) {
-    fprintf(stderr, "Can't receive packet", recfd);
+    fprintf(stderr, "Can't receive packet");
     perror("");
     fclose(fd);
     return;
@@ -326,7 +559,7 @@ void server_upload(int recfd, char *target_file, char **current_path) {
   strcpy(buffer, "ready");
   byte_sent = send(recfd, buffer, strlen(buffer) + 1, 0);
   if (byte_sent == -1) {
-    fprintf(stderr, "Can't send packet", recfd);
+    fprintf(stderr, "Can't send packet");
     perror("");
     fclose(fd);
     return;
@@ -338,7 +571,7 @@ void server_upload(int recfd, char *target_file, char **current_path) {
   while (received_size < file_size &&
          (chunk_size = recv(recfd, buffer, sizeof(buffer), 0)) > 0) {
     if (chunk_size == -1) {
-      fprintf(stderr, "Can't receive packet", recfd);
+      fprintf(stderr, "Can't receive packet");
       perror("");
       fclose(fd);
       return;
@@ -351,7 +584,7 @@ void server_upload(int recfd, char *target_file, char **current_path) {
       received_size += chunk_size;
     }
   }
-  fprintf(stderr, "Saved: %s\n", recfd, target_file);
+  fprintf(stderr, "Saved: %s\n", target_file);
   fclose(fd);
 }
 
@@ -374,6 +607,9 @@ void server_process(int recfd, char *full_command, char **current_path) {
     server_download(recfd, context, current_path);
   } else if (begin_with(command, "upload")) {
     server_upload(recfd, context, current_path);
+  } else if (begin_with(command,"mkdir")) {
+    server_mkdir(recfd, context, response, current_path);
+    respond(recfd,response);
   } else {
     strcpy(response, "No such command: ");
     strcat(response, command);
@@ -385,222 +621,60 @@ void server_process(int recfd, char *full_command, char **current_path) {
   free(response);
 }
 
-int main(int argc, const char *argv[]) {
-  // check argument
- 	if(argc != 2){
- 		printf("Invalid argument\n\n");
- 		return 0;
- 	}
 
-  char username[MAX],pass[MAX],folder[MAX], *reply;
-  int bytes_sent, bytes_received;
-  char filename[] = "account.txt";
-  char str[MAX];
+void server_mkdir(int recfd,char *new_dir, char *response, char **current_path){
+    // Handle empty arg and . and ..
+  // xử lý đối số trống . và .. 
+  if (new_dir == NULL)
+  {
+    strcpy(response,"@no directory name given");
+    return;
+  } else if (strcmp(new_dir,".") == 0 || strcmp(new_dir,"..") == 0)
+  {
+    strcpy(response,"@Wrong name format");
+    return;
+  }
 
-  // Initialize Addresses
-  struct sockaddr_in server_addr, client_addr;
-  socklen_t client_addr_length = sizeof(client_addr);
-  bzero(&server_addr, sizeof(server_addr));
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(atoi(argv[1]));
-  server_addr.sin_addr.s_addr = INADDR_ANY;
-  int pid;
+  char *new_path = malloc(strlen(*current_path) + strlen(new_dir) + 2);
+  strcpy(new_path, *current_path);
+  strcat(new_path, "/");
+  strcat(new_path, new_dir);
 
-  node_a *found;
-	node_a *account_list = loadData(filename);
+  errno = 0;
+  int ret = mkdir(new_path, S_IRWXU);
+  if (ret == -1) {
+      switch (errno) {
+          case EACCES :
+              strcpy(response,"@The parent directory does not allow write");
+              free(new_path);
+              return;
+          case EEXIST:
+              strcpy(response,"@pathname already exists");
+              free(new_path);
+              return;
+          case ENAMETOOLONG:
+              strcpy(response,"@pathname is too long");
+              free(new_path);
+              return;
+          default:
+              strcpy(response,"@mkdir");
+              free(new_path);
+              return;
+      }
+  }
+  else
+  {
+    fprintf(stderr, "Created: %s\n", new_dir);
+    strcpy(response,"@Folder is created");
+  }
+  free(new_path);
+}
 
-  // menu
-    int chon = 0;
-    do
-    {
-        // system("clear");
-        printf("\t\t\t ============MENU===========\n");
-        printf("\t\t\t |1. Create a client        |\n");
-        printf("\t\t\t |2. Show all clients       |\n");
-        printf("\t\t\t |3. Update clients         |\n");
-        printf("\t\t\t |4. Start server           |\n");
-        printf("\t\t\t |5. Delete client          |\n");
-        printf("\t\t\t |6. Exit                   |\n");
-        printf("\t\t\t ===========================\n");
-        printf("Enter your choice: ");
-        scanf("%d", &chon);
-        switch(chon)
-        {
-            case 1:
-                
-              break;
-            case 2:
-                
-              break;
-            case 3:
-                
-              break;
-            case 4:
-              // start server
-              // Create Socket
-              if ((sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-                // perror("Create socket error");
-                // exit(errno);
-                perror("\nError: ");
-                return 0;
-              }
-
-              // Bind Socket to Address
-              if ((bind(sock, (struct sockaddr *)&server_addr, sizeof(server_addr))) == -1) {
-                perror("Binding error");
-                // close(sock);
-                // exit(errno);
-                return 0;
-              }
-
-              // Start Listening
-              if ((listen(sock, MaxClient)) == -1) {
-                perror("\nError:");
-                // close(sock);s
-                // exit(errno);
-                return 0;
-              }
-
-              // Start Accepting
-              printf("Start Listening\n");
-              while (1) {
-                // int *recfd = malloc(sizeof(int));
-                void *recfd = accept(sock, (struct sockaddr *)&client_addr, &client_addr_length);
-                if ((int)recfd == -1) {
-                  perror("Accept error");
-                  continue;
-                }
-
-                pid = fork();
-                if (pid < 0)
-                {
-                  perror("Error: ");
-                  return 1;
-                }
-                
-                if (pid == 0)
-                {    
-                  // Initialize Buffer, Response, FDs
-                  int buffer_size = 1024;
-                  // buffer: thông điệp trao đổi (command)
-                  char *buffer = malloc(sizeof(char) * buffer_size);
-                  // current_path: đường dẫn hiện tại
-                  char *current_path = malloc(sizeof(char) * 2);   
-                  
-                  // Read-Evaluate-Print Loop
-                  // vòng lặp đọc-thực thi-in
-                  int login = 0;
-                  while (true) {
-                    // login
-                    if (0 == login)
-                    {
-                      if (0 >= (bytes_received = recv((int)recfd,username,MAX-1,0))){
-                        printf("Connection closed\n");
-                        break;
-                      }
-                      username[bytes_received] = '\0';
-
-                      // check username exist
-                      if (found = findNode(account_list,username))
-                      {
-                        if (found->status == 1)
-                        {
-                          reply = "1";
-                        }
-                        else reply = "2";      
-                      }
-                      else
-                      {
-                        reply = "0";
-                      }
-
-                      if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)))
-                      {
-                        printf("\Connection closed\n");
-                        break;
-                      }
-                      
-                      int count = 0;
-
-                      while (1)
-                      {
-                        // receive pass
-                        memset(pass,'\0',MAX);
-                        if (0 >= (bytes_received = recv((int)recfd,pass,MAX-1,0)))
-                        {
-                          printf("\nConnection closed\n");
-                          break;
-                        }
-                        pass[bytes_received] = '\0';
-
-                        // validate pass
-                        if (0 == strcmp(found->pass,pass))
-                        {
-                          reply = "1";
-                          login = 1;
-                        }
-                        else {
-                          count++;
-                          if (count == 3)
-                          {
-                            reply = "2";
-                            found->status = 0;
-                          }
-                          else reply="0";  
-                        }
-
-                        if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)));
-                        {
-                          printf("\n%s is connected\n",username);
-                          break;
-                        }  
-                      }
-                      saveData(account_list,"account.txt");
-                      // cấp thư mục
-                    }
-                    
-                    // cấp folder
-                    strcpy(current_path, ".");
-                    strcat(current_path, "/");
-                    strcat(current_path, found->folder);
-                      
-                    // Recieve message
-                    // in ra VD: (4)terminated
-                    if ((recv((int)recfd, buffer, buffer_size, 0)) < 1) {
-                      fprintf(stderr, "(%s) Terminated", username);
-                      perror("");
-                      close((int)recfd);
-                      break;
-                    }
-
-                    // Evaluate
-                    // in ra command đã nhận
-                    printf("(%s) Command: %s\n", username, buffer);
-                    // thực thi command
-                    server_process((int)recfd, buffer, &current_path);
-                  }
-
-                  // Clean Up
-                  free(buffer);
-                  free(current_path);
-                  close((int)recfd);
-                }
-                else
-                {
-                  close((int)recfd);
-                }  
-              }
-              close(sock);
-              break;
-            case 5:
-                
-                break;
-            case 6:
-                break;
-            default:
-                printf("Ban chon sai. Moi ban chon lai MENU!\n");
-                break;
-        }
-    }while(chon!=6);  
-  return 0;
+void sig_chld(int signo){
+	pid_t pid;
+	int stat;
+	
+	/* Wait the child process terminate */
+	while((pid = waitpid(-1, &stat, WNOHANG))>0)
+		printf("\nChild %d terminated\n",pid);
 }
