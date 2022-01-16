@@ -1,3 +1,7 @@
-compile:	
-	gcc -o server/server server/server_thread.c -pthread
-	gcc -o client/client client/client.c
+all: server/server client/client
+
+server/server: server/server.c
+	gcc server/server.c -o server/server
+
+client/client: client/client.c
+	gcc client/client.c -o client/client

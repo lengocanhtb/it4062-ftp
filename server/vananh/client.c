@@ -9,6 +9,8 @@
 #include <sys/types.h>  // socket()
 #include <unistd.h>     // close()
 
+#define Server_PortNumber 5555
+#define Server_Address "127.0.0.1"
 #define MAX 100
 
 int begin_with(const char *str, const char *pre) {
@@ -217,12 +219,6 @@ void client_process(int sock, char *buffer, char **path) {
 }
 
 int main(int argc, const char *argv[]) {
-  // check argument
-  // check argument
- 	if(argc != 3){
- 		printf("Invalid argument\n\n");
- 		return 0;
- 	}
 
   // Create Socket
   int sock; //clientfd for client;
@@ -237,8 +233,8 @@ int main(int argc, const char *argv[]) {
   char buff[MAX];
   bzero(&server_addr, sizeof(server_addr));
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(atoi(argv[2]));
-  server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+  server_addr.sin_port = htons(Server_PortNumber);
+  server_addr.sin_addr.s_addr = inet_addr(Server_Address);
   char username[MAX], password[MAX];
   int bytes_sent, bytes_received;
   char *path = malloc(2);
