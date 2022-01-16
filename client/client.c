@@ -191,6 +191,29 @@ void client_upload(int sock, char *buffer, char *target_file) {
   fclose(fd);
 }
 
+void client_mkdir(int sock, char *buffer, char *new_dir) {
+  // Send & Evaluate
+  if (send(sock, buffer, strlen(buffer) + 1, 0) == -1) {
+    fprintf(stderr, "can't send packet");
+    perror("");
+    return;
+  }
+
+  // Recieve
+  char response[1024];
+  if (recv(sock, response, sizeof(response), 0) == -1) {
+    fprintf(stderr, "can't receive packet");
+    perror("");
+    return;
+  }
+
+  // Print
+  if (begin_with(response, "@")) {
+    printf("%s\n", &response[1]);
+  } else {
+    free(*new_dir);
+  }
+}
 void client_process(int sock, char *buffer, char **path) {
   // Prepare
   char *full_command = malloc(strlen(buffer) + 1);   
@@ -208,6 +231,8 @@ void client_process(int sock, char *buffer, char **path) {
     client_download(sock, buffer, context);
   } else if (begin_with(command, "upload")) {
     client_upload(sock, buffer, context);
+  } else if (begin_with(command,"mkdir")) {
+    client_mkdir(sock,buffer,context);
   } else {
     printf("No such command: %s\n", buffer);
   }
@@ -243,85 +268,79 @@ int main(int argc, const char *argv[]) {
   int bytes_sent, bytes_received;
   char *path = malloc(2);
   strcpy(path, ".");
-  int LOGIN = 0;
+  int LOGIN = 0, PATH = 0;
   // Connecting to Server
   if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
     perror("Connect Failed");
     close(sock);
     exit(errno);
   }
+  
+  while (LOGIN == 0){
+    puts("Please enter username and password: ");
+    printf("Username:");
+    fgets(username,MAX,stdin);
+    username[strcspn(username,"\n")] = '\0';
 
-  // Read-Evaluate-Print Loop
-  while (1) {
-    // login
-    if(LOGIN == 0){
-      puts("Please enter username and password: ");
-      printf("Username:");
-      fgets(username,MAX,stdin);
-      username[strcspn(username,"\n")] = '\0';
-
-      // send username to serv
-      if (0 >= (bytes_sent=send(sock,username,strlen(username),0)))
-      {
-        printf("\n Connection closed\n");
-        return 0;
-      }
-      // receive server reply
-      if (0 >= (bytes_received = recv(sock,buff,MAX-1,0)))
-      {
-        printf("\nError!Cannot receive data from sever!\n");
-        return 0;
-      }
-      buff[bytes_received] = '\0';
-      if (0 == strcmp(buff,"0"))
-      {
-        puts("Account not existed\n");
-        return 0;
-      }
-      else if (0 == strcmp(buff,"2"))
-      {
-        puts("Account is blocked!\n");
-        return 0;
-      }
-      
-      do
-      {
-        /* get pass */
-        printf("Pass: ");
-        fgets(password,MAX,stdin);
-        password[strcspn(password, "\n")] = '\0';
-
-        // send pass to server
-        if (0 >= (bytes_sent = send(sock, password,strlen(password),0)))
-        {
-          printf("\Connection closed!");
-          return 0;
-        }
-
-        memset(buff, '\0', MAX);
-        if (0 >= (bytes_received = recv(sock,buff,MAX-1,0)))
-        {
-          printf("\nError!Cannot receive data from sever!\n");
-          return 0;
-        }
-        buff[bytes_received] = '\0';
-        if (0 == strcmp(buff,"0"))
-        {
-          puts("\nPassword is not correct. Please try again\n");
-          continue;
-        }
-        else if (0 == strcmp(buff,"2"))
-        {
-          puts("\nBlock account\n");
-          return 0;
-        }     
-        else if (0 == strcmp(buff,"1"))
-        {
-          puts("\nlogin is successfull\n");
-          LOGIN = 1;
-        }     
-      } while (0 != strcmp(buff,"1"));
+    // send username to serv
+    if (0 >= (bytes_sent=send(sock,username,strlen(username),0)))
+    {
+      printf("\n Connection closed\n");
+      return 0;
     }
+    // receive server reply
+    if (0 >= (bytes_received = recv(sock,buff,MAX-1,0)))
+    {
+      printf("\nError!Cannot receive data from sever!\n");
+      return 0;
+    }
+    buff[bytes_received] = '\0';
+    if (0 == strcmp(buff,"0"))
+    {
+      puts("Account not existed\n");
+      return 0;
+    }
+    
+    /* get pass */
+    printf("Pass: ");
+    fgets(password,MAX,stdin);
+    password[strcspn(password, "\n")] = '\0';
+
+    // send pass to server
+    if (0 >= (bytes_sent = send(sock, password,strlen(password),0)))
+    {
+      printf("\Connection closed!");
+      return 0;
+    }
+
+    memset(buff, '\0', MAX);
+    if (0 >= (bytes_received = recv(sock,buff,MAX-1,0)))
+    {
+      printf("\nError!Cannot receive data from sever!\n");
+      return 0;
+    }
+    buff[bytes_received] = '\0';
+    if (0 == strcmp(buff,"0"))
+    {
+      puts("\nPassword is not correct. Please try again\n");
+      continue;
+    }    
+    else if (0 == strcmp(buff,"1"))
+    {
+      puts("\nlogin is successfull\n"); 
+    } 
+    LOGIN = 1;    
+  }
+
+  if (0 >= (bytes_received = recv(sock,path,MAX-1,0)))
+  {
+    printf("\nFailed to receive folder!\n");
+    return 0;
+  }
+  path[bytes_received] = '\0';
+    
+  // Read-Evaluate-Print Loop
+  while (true) {
     // Read
     printf("(%s) $ ", path);
     fgets(buffer, 1024, stdin);
