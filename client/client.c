@@ -211,7 +211,7 @@ void client_mkdir(int sock, char *buffer, char *new_dir) {
   if (begin_with(response, "@")) {
     printf("%s\n", &response[1]);
   } else {
-    free(*new_dir);
+    free(new_dir);
   }
 }
 void client_process(int sock, char *buffer, char **path) {
@@ -309,7 +309,7 @@ int main(int argc, const char *argv[]) {
     // send pass to server
     if (0 >= (bytes_sent = send(sock, password,strlen(password),0)))
     {
-      printf("\Connection closed!");
+      printf("\nConnection closed!\n");
       return 0;
     }
 

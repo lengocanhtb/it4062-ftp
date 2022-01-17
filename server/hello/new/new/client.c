@@ -8,8 +8,6 @@
 #include <sys/socket.h> // socket(), inet_addr(), connect(), recv(), send()
 #include <sys/types.h>  // socket()
 #include <unistd.h>     // close()
-#include <libgen.h>
-
 
 #define MAX 100
 
@@ -72,7 +70,7 @@ void client_download(int sock, char *buffer, char *target_file) {
   // Initialize File Descriptor
   FILE *fd = fopen(target_file, "wb");
   if (fd == NULL) {
-    fprintf(stderr, "can't create file\n");
+    fprintf(stderr, "can't create file");
     perror("");
     return;
   }
@@ -130,17 +128,16 @@ void client_download(int sock, char *buffer, char *target_file) {
 
 void client_upload(int sock, char *buffer, char *target_file) {
   // Send Upload Command
-  
-  // Initialize File Descriptor
-  FILE *fd = fopen(target_file, "rb");
-  if (fd == NULL) {
-    fprintf(stderr, "can't create file \n");
+  if (send(sock, buffer, strlen(buffer) + 1, 0) == -1) {
+    fprintf(stderr, "can't send packet");
     perror("");
     return;
   }
 
-  if (send(sock, buffer, strlen(buffer) + 1, 0) == -1) {
-    fprintf(stderr, "can't send packet");
+  // Initialize File Descriptor
+  FILE *fd = fopen(target_file, "rb");
+  if (fd == NULL) {
+    fprintf(stderr, "can't create file ");
     perror("");
     return;
   }
@@ -214,10 +211,9 @@ void client_mkdir(int sock, char *buffer, char *new_dir) {
   if (begin_with(response, "@")) {
     printf("%s\n", &response[1]);
   } else {
-    free(new_dir);
+    free(*new_dir);
   }
 }
-
 void client_process(int sock, char *buffer, char **path) {
   // Prepare
   char *full_command = malloc(strlen(buffer) + 1);   
@@ -234,11 +230,7 @@ void client_process(int sock, char *buffer, char **path) {
   } else if (begin_with(command, "download")) {
     client_download(sock, buffer, context);
   } else if (begin_with(command, "upload")) {
-    char *file_name = basename(context);
-    strcat(command," ");
-    strcat(command,file_name);
-    printf("Command: %s\n",command);
-    client_upload(sock, command, context);
+    client_upload(sock, buffer, context);
   } else if (begin_with(command,"mkdir")) {
     client_mkdir(sock,buffer,context);
   } else {
@@ -306,7 +298,7 @@ int main(int argc, const char *argv[]) {
     if (0 == strcmp(buff,"0"))
     {
       puts("Account not existed\n");
-      break;
+      return 0;
     }
     
     /* get pass */
@@ -317,7 +309,7 @@ int main(int argc, const char *argv[]) {
     // send pass to server
     if (0 >= (bytes_sent = send(sock, password,strlen(password),0)))
     {
-      printf("\nConnection closed!\n");
+      printf("\Connection closed!");
       return 0;
     }
 

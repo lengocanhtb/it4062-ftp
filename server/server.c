@@ -12,6 +12,7 @@
 #include <unistd.h>     // close()
 #include <ctype.h>
 #include <sys/stat.h>   //mkdir()
+#include <libgen.h>
 
 #define MaxClient 20
 #define MAX 100
@@ -111,8 +112,6 @@ int main(int argc, const char *argv[]) {
             // Start Listening
             if ((listen(sock, MaxClient)) == -1) {
               perror("\nError:");
-              // close(sock);s
-              // exit(errno);
               return 0;
             }
             signal(SIGCHLD, sig_chld);
@@ -516,10 +515,13 @@ void server_download(int recfd, char *target_file, char **current_path) {
 void server_upload(int recfd, char *target_file, char **current_path) {
 
   // Build Path
-  char *full_path = malloc(strlen(*current_path) + strlen(target_file) + 2);
+  // char file_name[MAX];
+  char *file_name = basename(target_file);
+  char *full_path = malloc(strlen(*current_path) + strlen(file_name) + 2);
   strcpy(full_path, *current_path);
   strcat(full_path, "/");
-  strcat(full_path, target_file);
+  strcat(full_path, file_name);
+  printf("%s\n",full_path);
 
   // Initialize File Descriptor
   FILE *fd;
@@ -579,7 +581,7 @@ void server_upload(int recfd, char *target_file, char **current_path) {
     }
   }
   free(full_path);
-  fprintf(stderr, "Saved: %s\n", target_file);
+  fprintf(stderr, "Saved: %s\n", file_name);
   fclose(fd);
 }
 
