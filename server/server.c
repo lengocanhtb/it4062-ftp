@@ -26,6 +26,7 @@ typedef struct node
   struct node *next;
 } node_a;
 
+int dem(char *s,char t);
 void sig_chld(int signo);
 node_a *loadData(char *filename);
 node_a *findNode(node_a *head, char *username);
@@ -38,7 +39,6 @@ void server_download(int recfd, char *target_file, char **current_path);
 void server_upload(int recfd, char *target_file, char **current_path);
 void server_mkdir(int recfd,char *new_dir, char *respond, char **current_path);
 void server_process(int recfd, char *full_command, char **current_path);
-
 
 int main(int argc, const char *argv[]) {
   // check argument
@@ -135,7 +135,8 @@ int main(int argc, const char *argv[]) {
               }
               
               if (pid == 0)
-              {    
+              {   
+                // close(sock) ;
                 // Initialize Buffer, Response, FDs
                 int buffer_size = 1024;
                 // buffer: thông điệp trao đổi (command)
@@ -145,7 +146,7 @@ int main(int argc, const char *argv[]) {
                 
                 int login = 0,path = 0;
                 strcpy(current_path,".");
-                while (0 == login) {
+                while (login == 0) {
                   if (0 >= (bytes_received = recv((int)recfd,username,MAX-1,0))){
                     printf("Connection closed\n");
                     break;
@@ -195,31 +196,22 @@ int main(int argc, const char *argv[]) {
                       break;
                     }  
                   }
-                }
-                while (path == 0)
-                {
-                  /* code */
+                } 
+                
+                while (path == 0) {
+                  /* code */                 
                   strcat(current_path,"/");
                   strcat(current_path,found->folder);
-                  if (0 >= (bytes_sent = send((int)recfd,current_path,strlen(current_path),0)));
-                  {
-                    printf("\n%s failed to send folder\n",username);
-                    break;
-                  }
+                  printf("Current_path: %s\n",current_path);
+                  respond((int)recfd,current_path);
                   path = 1;
                 }
 
                 // Read-Evaluate-Print Loop
                 // vòng lặp đọc-thực thi-in
                 while (true) {
-                  printf("\n%s is connecting...\n",username);
-                  // cấp folder
-                  
-    
                   // Recieve message
                   // in ra VD: (4)terminated
-                  
-                  printf("Current path: %s\n",current_path);
                   if ((recv((int)recfd, buffer, buffer_size, 0)) < 1) {
                     fprintf(stderr, "(%s) Terminated", username);
                     perror("");
@@ -255,7 +247,8 @@ int main(int argc, const char *argv[]) {
               printf("Ban chon sai. Moi ban chon lai MENU!\n");
               break;
       }
-  }while(chon!=6);  
+  }while(chon!=6); 
+  free(account_list); 
   return 0;
 }
 
@@ -287,9 +280,11 @@ node_a *loadData(char *filename){
 		else
 			current = current->next = node;
 		count++;
+    // free(node);
 	}
 
 	fclose(f);
+  
 	printf("Successfully loaded %d account(s)\n",count);
 	return head;
 }
@@ -334,7 +329,6 @@ int respond(int recfd, char response[]) {
 // xem cac tep trong thu muc (~lenh ls trong ubuntu) 
 void server_ls(int recfd, char *response, char **current_path) {
   // Open Directory
-  fprintf(stderr, "Current path: %s\n", *current_path);
   DIR *current_fd;
   if ((current_fd = opendir(*current_path)) == NULL)// opendir return pointer to directory stream and on error NUll
   {
@@ -406,7 +400,7 @@ void server_cd(int recfd, char *open_dir, char *response, char **current_path) {
   } else if (strcmp(open_dir, "..") == 0) {
     // Check Root
     // neu current_path = . => thong bao da den goc
-    if (strcmp(*current_path, ".") == 0) {
+    if (dem(*current_path,'/') == 1) {
       strcpy(response, "@already reached root");
       return;
     }
@@ -584,6 +578,7 @@ void server_upload(int recfd, char *target_file, char **current_path) {
       received_size += chunk_size;
     }
   }
+  free(full_path);
   fprintf(stderr, "Saved: %s\n", target_file);
   fclose(fd);
 }
@@ -620,7 +615,6 @@ void server_process(int recfd, char *full_command, char **current_path) {
   // Cleanup
   free(response);
 }
-
 
 void server_mkdir(int recfd,char *new_dir, char *response, char **current_path){
     // Handle empty arg and . and ..
@@ -677,4 +671,14 @@ void sig_chld(int signo){
 	/* Wait the child process terminate */
 	while((pid = waitpid(-1, &stat, WNOHANG))>0)
 		printf("\nChild %d terminated\n",pid);
+}
+
+int dem(char *s,char t)
+{
+ int dem=0;
+ for(int i=0;i<=strlen(s);i++)
+ {
+ if(s[i]==t) dem=dem+1;  
+ }
+ return dem;
 }
