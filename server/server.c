@@ -22,7 +22,6 @@ typedef struct node
 {
   char username[MAX];
   char pass[MAX];
-  // int status;
   char folder[MAX];
   struct node *next;
 } node_a;
@@ -31,6 +30,8 @@ int dem(char *s,char t);
 void sig_chld(int signo);
 node_a *loadData(char *filename);
 node_a *findNode(node_a *head, char *username);
+node_a *CreateNode(char *username, char *pass, char *folder);
+node_a *AddTail(node_a *head, char *username, char *pass, char *folder);
 void saveData(node_a *head, char *filename);
 int begin_with(const char *str, const char *pre);
 int respond(int recfd, char response[]);
@@ -71,8 +72,8 @@ int main(int argc, const char *argv[]) {
   {
       // system("clear");
       printf("\t\t\t ============MENU===========\n");
-      printf("\t\t\t |1. Create a client        |\n");
-      printf("\t\t\t |2. Show all clients       |\n");
+      printf("\t\t\t |1. Show all clients       |\n");
+      printf("\t\t\t |2. Create a client        |\n");
       printf("\t\t\t |3. Update clients         |\n");
       printf("\t\t\t |4. Start server           |\n");
       printf("\t\t\t |5. Delete client          |\n");
@@ -83,10 +84,67 @@ int main(int argc, const char *argv[]) {
       switch(chon)
       {
           case 1:
-              
+            // show all clients
+            printf("\n");
+            printf("Username\tPass\t\tFolder\n");
+            for(node_a *p = account_list; p != NULL; p = p->next){
+                printf("%s\t\t%s\t\t%s\n", p->username, p->pass, p->folder);
+            }
+            printf("\n");  
             break;
           case 2:
-              
+            // create client
+            // printf("\n");
+            while (getchar() != '\n');
+            do
+            {
+              printf("New Client Username: ");
+              fgets(username,MAX,stdin);
+              username[strcspn(username,"\n")] = '\0';
+            } while (findNode(account_list,username) != NULL);         
+            
+            printf("New Client Password: ");
+            fgets(pass,MAX,stdin);
+            pass[strcspn(pass,"\n")] = '\0';
+
+            int c = 0;
+            do
+            {
+              printf("New Client Folder Name: ");
+              fgets(folder,MAX,stdin);
+              folder[strcspn(folder,"\n")] = '\0';
+
+              errno = 0;
+              int ret = mkdir(folder, S_IRWXU);
+              if (ret == -1) {
+                switch (errno) {
+                  case EACCES :
+                      printf("The root directory does not allow write. ");
+                      break;
+                  case EEXIST:
+                      printf("Folder %s already exists. \n%s used for client.",folder, folder);
+                      c = 1;
+                      break;
+                  case ENAMETOOLONG:
+                      printf("Pathname is too long");
+                      break;
+                  default:
+                      printf("mkdir");
+                      break;
+                }
+              }
+              else
+              {
+                printf(stderr, "Created: %s\n", folder);
+                printf("Folder %s is created",folder);
+                c = 1;
+              }
+            } while (c == 0);
+            
+            account_list = AddTail(account_list,username,pass,folder);
+            saveData(account_list,filename);
+            
+            printf("\n");
             break;
           case 3:
               
@@ -252,8 +310,7 @@ int main(int argc, const char *argv[]) {
 }
 
 // file -> linked list 
-node_a *loadData(char *filename){
-	// int status; 
+node_a *loadData(char *filename){ 
   int count =0;
 	FILE *f;
 	char username[MAX], pass[MAX], folder[MAX];
@@ -674,6 +731,32 @@ void sig_chld(int signo){
 	while((pid = waitpid(-1, &stat, WNOHANG))>0)
 		printf("\nChild %d terminated\n",pid);
 }
+
+node_a *CreateNode(char *username, char *pass, char *folder){
+    node_a *temp = malloc(sizeof(node_a)); 
+    temp->next = NULL;// Cho next trỏ tới NULL
+    strcpy(temp->username,username);
+    strcpy(temp->pass,pass);
+    strcpy(temp->folder,folder); // Gán giá trị cho Node
+    return temp;//Trả về node mới đã có giá trị
+}
+
+node_a *AddTail(node_a *head, char *username, char *pass, char *folder){
+    node_a *temp, *p;// Khai báo 2 node tạm temp và p
+    temp = CreateNode(username,pass,folder);//Gọi hàm createNode để khởi tạo node temp có next trỏ tới NULL và giá trị là value
+    if(head == NULL){
+        head = temp;     //Nếu linked list đang trống thì Node temp là head luôn
+    }
+    else{
+        p = head;// Khởi tạo p trỏ tới head
+        while(p->next != NULL){
+            p = p->next;//Duyệt danh sách liên kết đến cuối. Node cuối là node có next = NULL
+        }
+        p->next = temp;//Gán next của thằng cuối = temp. Khi đó temp sẽ là thằng cuối(temp->next = NULL mà)
+    }
+    return head;
+}
+ 
 
 int dem(char *s,char t)
 {
