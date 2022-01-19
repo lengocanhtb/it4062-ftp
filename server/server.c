@@ -13,26 +13,15 @@
 #include <ctype.h>
 #include <sys/stat.h>   //mkdir()
 #include <libgen.h>
+#include "account.h"
 
 #define MaxClient 20
 #define MAX 100
 
 int sock; //listenfd for server;
-typedef struct node
-{
-  char username[MAX];
-  char pass[MAX];
-  char folder[MAX];
-  struct node *next;
-} node_a;
 
 int dem(char *s,char t);
 void sig_chld(int signo);
-node_a *loadData(char *filename);
-node_a *findNode(node_a *head, char *username);
-node_a *CreateNode(char *username, char *pass, char *folder);
-node_a *AddTail(node_a *head, char *username, char *pass, char *folder);
-void saveData(node_a *head, char *filename);
 int begin_with(const char *str, const char *pre);
 int respond(int recfd, char response[]);
 void server_ls(int recfd, char *response, char **current_path);
@@ -71,14 +60,14 @@ int main(int argc, const char *argv[]) {
   do
   {
       // system("clear");
-      printf("\t\t\t ============MENU===========\n");
-      printf("\t\t\t |1. Show all clients       |\n");
-      printf("\t\t\t |2. Create a client        |\n");
-      printf("\t\t\t |3. Update clients         |\n");
-      printf("\t\t\t |4. Start server           |\n");
-      printf("\t\t\t |5. Delete client          |\n");
-      printf("\t\t\t |6. Exit                   |\n");
-      printf("\t\t\t ===========================\n");
+      printf("\n============MENU===========\n");
+      printf("|1. Show all clients       |\n");
+      printf("|2. Create a client        |\n");
+      printf("|3. Update clients         |\n");
+      printf("|4. Start server           |\n");
+      printf("|5. Delete client          |\n");
+      printf("|6. Exit                   |\n");
+      printf("===========================\n");
       printf("Enter your choice: ");
       scanf("%d", &chon);
       switch(chon)
@@ -147,7 +136,20 @@ int main(int argc, const char *argv[]) {
             printf("\n");
             break;
           case 3:
-              
+            while (getchar() != '\n');
+            printf("Client Username: ");
+            fgets(username,MAX,stdin);
+            username[strcspn(username,"\n")] = '\0'; 
+            node_a *found = findNode(account_list,username);
+            if (found == NULL)
+            {
+              printf("Username \"%s\" not exist!\n");
+            }
+            else
+            {
+              account_list = updateNode(account_list,found);
+              saveData(account_list,filename);
+            } 
             break;
           case 4:
             // start server
@@ -175,8 +177,9 @@ int main(int argc, const char *argv[]) {
             signal(SIGCHLD, sig_chld);
 
             // Start Accepting
-            printf("Start Listening\n");
-            while (1) {
+            printf("Start Listening\n"); 
+                       
+            while (1) {                                  
               // int *recfd = malloc(sizeof(int));
               void *recfd = accept(sock, (struct sockaddr *)&client_addr, &client_addr_length);
               if ((int)recfd == -1) {
@@ -193,7 +196,6 @@ int main(int argc, const char *argv[]) {
               
               if (pid == 0)
               {   
-                // close(sock) ;
                 // Initialize Buffer, Response, FDs
                 int buffer_size = 1024;
                 // buffer: thông điệp trao đổi (command)
@@ -259,7 +261,7 @@ int main(int argc, const char *argv[]) {
                   /* code */                 
                   strcat(current_path,"/");
                   strcat(current_path,found->folder);
-                  printf("Current_path: %s\n",current_path);
+                  printf("%s in %s\n",username,current_path);
                   respond((int)recfd,current_path);
                   path = 1;
                 }
@@ -293,12 +295,31 @@ int main(int argc, const char *argv[]) {
                 close((int)recfd);
               }  
             }
+            
             close(sock);
             break;
           case 5:
-              
+              while (getchar() != '\n');
+              printf("Client Username: ");
+              fgets(username,MAX,stdin);
+              username[strcspn(username,"\n")] = '\0';
+              if (findNode(account_list,username) == NULL)
+              {
+                printf("Username \"%s\" not exist!\n");
+              }
+              else if (account_list == findNode(account_list,username))
+              {
+                account_list = deleteHead(account_list);
+                printf("Client \"%s\" deleted",username);
+              }
+              else
+              {
+                account_list = deleteAt(account_list,username);
+                printf("Client \"%s\" deleted",username);
+              }
               break;
           case 6:
+              
               break;
           default:
               printf("Ban chon sai. Moi ban chon lai MENU!\n");
@@ -309,63 +330,6 @@ int main(int argc, const char *argv[]) {
   return 0;
 }
 
-// file -> linked list 
-node_a *loadData(char *filename){ 
-  int count =0;
-	FILE *f;
-	char username[MAX], pass[MAX], folder[MAX];
-	node_a *head, *current;
-	head = current = NULL;
-
-	printf("Loading data...\n");
-	// open file
-	if((f = fopen(filename,"r"))==NULL){
-		printf("Failed to open file");
-		exit(0);
-	}
-
-	//data -> linked list
-	while(fscanf(f,"%s %s %s\n", username,pass,folder) != EOF){
-		node_a *node = malloc(sizeof(node_a));
-		strcpy(node->username, username);
-		strcpy(node->pass,pass);
-    strcpy(node->folder,folder);
-
-		if(head == NULL)
-			current = head = node;
-		else
-			current = current->next = node;
-		count++;
-    // free(node);
-	}
-
-	fclose(f);
-  
-	printf("Successfully loaded %d account(s)\n",count);
-	return head;
-}
-
-//find account
-node_a *findNode(node_a *head, char *username){
-	node_a *current = head;
-	while(current != NULL){
-		if (0 == strcmp(current->username, username))
-			return current;
-		current = current->next;
-	}
-
-	return NULL;
-}
-
-// linked list -> file
-void saveData(node_a *head, char *filename){
-	FILE *f;
-	f = fopen(filename,"w");
-	node_a *current;
-	for (current = head; current; current = current->next)
-		fprintf(f, "%s %s %s\n", current->username, current->pass,current->folder);
-	fclose(f);
-}
 
 // xem command str có bắt đầu bằng xâu pre (VD begin_with(command,"ls") trả về 1 nếu command bắt đầu bằng ls)
 int begin_with(const char *str, const char *pre) {
@@ -731,32 +695,6 @@ void sig_chld(int signo){
 	while((pid = waitpid(-1, &stat, WNOHANG))>0)
 		printf("\nChild %d terminated\n",pid);
 }
-
-node_a *CreateNode(char *username, char *pass, char *folder){
-    node_a *temp = malloc(sizeof(node_a)); 
-    temp->next = NULL;// Cho next trỏ tới NULL
-    strcpy(temp->username,username);
-    strcpy(temp->pass,pass);
-    strcpy(temp->folder,folder); // Gán giá trị cho Node
-    return temp;//Trả về node mới đã có giá trị
-}
-
-node_a *AddTail(node_a *head, char *username, char *pass, char *folder){
-    node_a *temp, *p;// Khai báo 2 node tạm temp và p
-    temp = CreateNode(username,pass,folder);//Gọi hàm createNode để khởi tạo node temp có next trỏ tới NULL và giá trị là value
-    if(head == NULL){
-        head = temp;     //Nếu linked list đang trống thì Node temp là head luôn
-    }
-    else{
-        p = head;// Khởi tạo p trỏ tới head
-        while(p->next != NULL){
-            p = p->next;//Duyệt danh sách liên kết đến cuối. Node cuối là node có next = NULL
-        }
-        p->next = temp;//Gán next của thằng cuối = temp. Khi đó temp sẽ là thằng cuối(temp->next = NULL mà)
-    }
-    return head;
-}
- 
 
 int dem(char *s,char t)
 {
