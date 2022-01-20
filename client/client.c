@@ -10,7 +10,7 @@
 #include <unistd.h>     // close()
 #include <sys/stat.h>
 
-#define MAX 100
+#define MAX 1024
 
 int is_regular_file(const char *path)
 {
@@ -158,7 +158,6 @@ void client_upload(int sock, char *buffer, char *target_file) {
     perror("");
     return;
   }
-
   
   ssize_t chunk_size;
 
@@ -250,7 +249,6 @@ void client_rm(int sock, char *buffer, char *target_file){
     printf("%s\n", &response[1]);
   } 
 }
-
 
 void client_process(int sock, char *buffer, char **path) {
   // Prepare

@@ -18,9 +18,10 @@
 #include "account.h"
 
 #define MaxClient 20
-#define MAX 100
+#define MAX 1024
 
  //listenfd for server;
+
 int is_regular_file(const char *path)
 {
     struct stat path_stat;
@@ -91,8 +92,8 @@ int main(int argc, const char *argv[]) {
             printf("\n");  
             break;
           case 2:
-            // create client
-            // printf("\n");
+          // Create a client
+          {
             while (getchar() != '\n');
             printf("New Client Username: ");
             fgets(username,MAX,stdin);
@@ -146,8 +147,11 @@ int main(int argc, const char *argv[]) {
             saveData(account_list,filename);
             
             printf("\n");
+          }
             break;
           case 3:
+          // Update client
+          {
             while (getchar() != '\n');
             printf("Client Username: ");
             fgets(username,MAX,stdin);
@@ -161,10 +165,12 @@ int main(int argc, const char *argv[]) {
             {
               account_list = updateNode(account_list,found);
               saveData(account_list,filename);
-            } 
+            }
+          }   
             break;
           case 4:
             // start server
+          {
             // Create Socket
             if ((sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
               // perror("Create socket error");
@@ -315,6 +321,7 @@ int main(int argc, const char *argv[]) {
             }
             
             close(sock);
+          }
             break;
           case 5:
               while (getchar() != '\n');
@@ -520,6 +527,7 @@ void server_download(int recfd, char *target_file, char **current_path) {
     perror("");
     return;
   }
+  
   char buffer[1024];
   ssize_t chunk_size;
 
@@ -585,7 +593,7 @@ void server_upload(int recfd, char *target_file, char **current_path) {
 
   // Retrieve File Size
   char buffer[1024];
-  strcpy(buffer, "size?");
+  strcpy(buffer, "?size");
   ssize_t byte_sent = send(recfd, buffer, strlen(buffer) + 1, 0);
   if (byte_sent == -1) {
     fprintf(stderr, "Can't send packet");

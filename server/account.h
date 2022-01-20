@@ -1,4 +1,4 @@
-#define MAX 100
+#define MAX 1024
 typedef struct node
 {
   char username[MAX];
