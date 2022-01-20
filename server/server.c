@@ -637,12 +637,6 @@ void server_upload(int recfd, char *target_file, char **current_path) {
 }
 
 void server_rm(int recfd, char *target_file, char *response, char **current_path) {
-  // if (target_file == NULL)
-  // {
-  //   strcpy(response,"@no file name given");
-  //   return;
-  // } 
-
   char *full_path = malloc(strlen(*current_path) + strlen(target_file) + 2);
   strcpy(full_path, *current_path);
   strcat(full_path, "/");
