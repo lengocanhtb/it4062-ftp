@@ -127,6 +127,7 @@ void client_download(int sock, char *buffer, char *target_file) {
 }
 
 void client_upload(int sock, char *buffer, char *target_file) {
+   
   // Send Upload Command
   if (send(sock, buffer, strlen(buffer) + 1, 0) == -1) {
     fprintf(stderr, "can't send packet");
@@ -137,8 +138,8 @@ void client_upload(int sock, char *buffer, char *target_file) {
   // Initialize File Descriptor
   FILE *fd = fopen(target_file, "rb");
   if (fd == NULL) {
-    fprintf(stderr, "can't create file ");
-    perror("");
+    fprintf(stderr, "Error ");
+    perror("Error");
     return;
   }
   ssize_t chunk_size;
@@ -210,9 +211,7 @@ void client_mkdir(int sock, char *buffer, char *new_dir) {
   // Print
   if (begin_with(response, "@")) {
     printf("%s\n", &response[1]);
-  } else {
-    free(new_dir);
-  }
+  } 
 }
 
 void client_rm(int sock, char *buffer, char *target_file){
@@ -302,7 +301,7 @@ int main(int argc, const char *argv[]) {
   
   while (LOGIN == 0){
     puts("Please enter username and password: ");
-    printf("Username:");
+    printf("Username: ");
     fgets(username,MAX,stdin);
     username[strcspn(username,"\n")] = '\0';
 
@@ -321,12 +320,12 @@ int main(int argc, const char *argv[]) {
     buff[bytes_received] = '\0';
     if (0 == strcmp(buff,"0"))
     {
-      puts("Account not existed\n");
-      return 0;
+      puts("\nAccount not existed.Please try again\n");
+      continue;
     }
     
     /* get pass */
-    printf("Pass: ");
+    printf("Password: ");
     fgets(password,MAX,stdin);
     password[strcspn(password, "\n")] = '\0';
 
@@ -347,7 +346,7 @@ int main(int argc, const char *argv[]) {
     if (0 == strcmp(buff,"0"))
     {
       puts("\nPassword is not correct. Please try again\n");
-      continue;
+      return 0;
     }    
     else if (0 == strcmp(buff,"1"))
     {
@@ -383,4 +382,5 @@ int main(int argc, const char *argv[]) {
   }
   printf("Session Terminated\n");
   close(sock);
+  free(path);
 }

@@ -217,18 +217,25 @@ int main(int argc, const char *argv[]) {
                   // check username exist
                   if (found = findNode(account_list,username))
                   { 
-                    reply = "1";    
+                    reply = "1";  
+                    if (0>=(bytes_sent = send(recfd,reply,strlen(reply),0)))
+                    {
+                      printf("Connection closed\n");
+                      break;
+                    } 
                   }
                   else
                   {
                     reply = "0";
+                    if (0>=(bytes_sent = send(recfd,reply,strlen(reply),0)))
+                    {
+                      printf("Connection closed\n");
+                      break;
+                    }
+                    continue;
                   }
 
-                  if (0>=(bytes_sent = send(recfd,reply,strlen(reply),0)))
-                  {
-                    printf("Connection closed\n");
-                    break;
-                  }
+                  
 
                   while (1)
                   {
@@ -534,8 +541,7 @@ void server_download(int recfd, char *target_file, char **current_path) {
   fclose(fd);
 }
 
-void server_upload(int recfd, char *target_file, char **current_path) {
-
+void server_upload(int recfd, char *target_file, char **current_path) { 
   // Build Path
   // char file_name[MAX];
   char *file_name = basename(target_file);
@@ -618,19 +624,9 @@ void server_rm(int recfd, char *target_file, char *response, char **current_path
   strcat(full_path, "/");
   strcat(full_path, target_file);
   
-  FILE *fd;
-  if ((fd = fopen(full_path, "rb")) == NULL) {
-    respond(recfd, "@File open error");
-    fprintf(stderr, "Can't open %s\n", full_path);
-    free(full_path);
-    perror("");
-    return;
-  }
-
   int ret = remove(full_path);
   if(ret != 0) {
     strcpy(response,"@Error: unable to delete the file/folder");
-    fclose(fd);
     free(full_path);
     perror("Error");
     return;
@@ -638,10 +634,8 @@ void server_rm(int recfd, char *target_file, char *response, char **current_path
     printf("File deleted successfully\n");
     strcpy(response,"@File deleted successfully");   
   }
-  fclose(fd);
   free(full_path);
 }
-
 
 void server_process(int recfd, char *full_command, char **current_path) {
   // Prepare

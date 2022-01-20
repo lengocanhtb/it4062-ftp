@@ -6,8 +6,6 @@
 make
 ```
 
-make
-
 Chạy server:
 
 ```
@@ -15,7 +13,7 @@ cd server
 ./server Port (vd: ./server 5500)
 ```
 
-Chạy client
+Chạy client:
 
 ```
 cd client
@@ -30,6 +28,8 @@ cd client
 * cd : di chuyển đến thư mục
 * upload: tải file lên server
 * download: tải xuống file từ server xuống client
+* mkdir: tạo thư mục mới
+* rm: xóa file hoặc thư mục rỗng
 * exit: thoát
 
 ###### Server
