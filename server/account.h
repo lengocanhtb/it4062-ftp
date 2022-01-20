@@ -143,7 +143,7 @@ node_a *updateNode(node_a *head,node_a *found){
 		}
 		else
 		{
-		printf(stderr, "Created: %s\n", folder);
+		printf("Created: %s\n", folder);
 		printf("Folder %s is created\n",folder);
 		c = 1;
 		}

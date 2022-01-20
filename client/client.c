@@ -214,6 +214,27 @@ void client_mkdir(int sock, char *buffer, char *new_dir) {
     free(new_dir);
   }
 }
+
+void client_rm(int sock, char *buffer, char *target_file){
+  if (send(sock, buffer, strlen(buffer) + 1, 0) == -1) {
+    fprintf(stderr, "can't send packet");
+    perror("");
+    return;
+  }
+
+  char response[1024];
+  if (recv(sock, response, sizeof(response), 0) == -1) {
+    fprintf(stderr, "can't receive packet");
+    perror("");
+    return;
+  }
+
+  if (begin_with(response, "@")) {
+    printf("%s\n", &response[1]);
+  } 
+}
+
+
 void client_process(int sock, char *buffer, char **path) {
   // Prepare
   char *full_command = malloc(strlen(buffer) + 1);   
@@ -233,7 +254,10 @@ void client_process(int sock, char *buffer, char **path) {
     client_upload(sock, buffer, context);
   } else if (begin_with(command,"mkdir")) {
     client_mkdir(sock,buffer,context);
-  } else {
+  } else if (begin_with(command,"rm")) {
+    client_rm(sock,buffer,context);
+  }  
+  else {
     printf("No such command: %s\n", buffer);
   }
 

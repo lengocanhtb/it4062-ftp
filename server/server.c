@@ -12,6 +12,7 @@
 #include <unistd.h>     // close()
 #include <ctype.h>
 #include <sys/stat.h>   //mkdir()
+#include <sys/wait.h>   //waitpid();
 #include <libgen.h>
 #include "account.h"
 
@@ -30,6 +31,7 @@ void server_download(int recfd, char *target_file, char **current_path);
 void server_upload(int recfd, char *target_file, char **current_path);
 void server_mkdir(int recfd,char *new_dir, char *respond, char **current_path);
 void server_process(int recfd, char *full_command, char **current_path);
+void server_rm(int recfd, char *full_command, char *target_file, char **current_path);
 
 int main(int argc, const char *argv[]) {
   // check argument
@@ -143,7 +145,7 @@ int main(int argc, const char *argv[]) {
             node_a *found = findNode(account_list,username);
             if (found == NULL)
             {
-              printf("Username \"%s\" not exist!\n");
+              printf("Username \"%s\" not exist!\n",username);
             }
             else
             {
@@ -180,9 +182,9 @@ int main(int argc, const char *argv[]) {
             printf("Start Listening\n"); 
                        
             while (1) {                                  
-              // int *recfd = malloc(sizeof(int));
-              void *recfd = accept(sock, (struct sockaddr *)&client_addr, &client_addr_length);
-              if ((int)recfd == -1) {
+              int recfd;
+              recfd = accept(sock, (struct sockaddr *)&client_addr, &client_addr_length);
+              if (recfd == -1) {
                 perror("Accept error");
                 continue;
               }
@@ -206,7 +208,7 @@ int main(int argc, const char *argv[]) {
                 int login = 0,path = 0;
                 strcpy(current_path,".");
                 while (login == 0) {
-                  if (0 >= (bytes_received = recv((int)recfd,username,MAX-1,0))){
+                  if (0 >= (bytes_received = recv(recfd,username,MAX-1,0))){
                     printf("Connection closed\n");
                     break;
                   }
@@ -222,9 +224,9 @@ int main(int argc, const char *argv[]) {
                     reply = "0";
                   }
 
-                  if (0>=(bytes_sent = send((int)recfd,reply,strlen(reply),0)))
+                  if (0>=(bytes_sent = send(recfd,reply,strlen(reply),0)))
                   {
-                    printf("\Connection closed\n");
+                    printf("Connection closed\n");
                     break;
                   }
 
@@ -232,7 +234,7 @@ int main(int argc, const char *argv[]) {
                   {
                     // receive pass
                     memset(pass,'\0',MAX);
-                    if (0 >= (bytes_received = recv((int)recfd,pass,MAX-1,0)))
+                    if (0 >= (bytes_received = recv(recfd,pass,MAX-1,0)))
                     {
                       printf("\nConnection closed\n");
                       break;
@@ -249,7 +251,7 @@ int main(int argc, const char *argv[]) {
                       reply="0";  
                     }
 
-                    if (0 >= (bytes_sent = send((int)recfd,reply,strlen(reply),0)));
+                    if (0 >= (bytes_sent = send(recfd,reply,strlen(reply),0)));
                     {
                       printf("\n%s is try to connect\n",username);
                       break;
@@ -271,28 +273,27 @@ int main(int argc, const char *argv[]) {
                 while (true) {
                   // Recieve message
                   // in ra VD: (4)terminated
-                  if ((recv((int)recfd, buffer, buffer_size, 0)) < 1) {
-                    fprintf(stderr, "(%s) Terminated", username);
-                    perror("");
-                    close((int)recfd);
+                  if ((recv(recfd, buffer, buffer_size, 0)) < 1) {
+                    fprintf(stderr, "(%s) Terminated\n", username);
+                    // perror("");
+                    close(recfd);
                     break;
                   }
-
                   // Evaluate
                   // in ra command đã nhận
                   printf("(%s) Command: %s\n", username, buffer);
                   // thực thi command
-                  server_process((int)recfd, buffer, &current_path);
+                  server_process(recfd, buffer, &current_path);
                 }
 
                 // Clean Up
                 free(buffer);
                 free(current_path);
-                close((int)recfd);
+                // close(recfd);
               }
               else
               {
-                close((int)recfd);
+                close(recfd);
               }  
             }
             
@@ -305,7 +306,7 @@ int main(int argc, const char *argv[]) {
               username[strcspn(username,"\n")] = '\0';
               if (findNode(account_list,username) == NULL)
               {
-                printf("Username \"%s\" not exist!\n");
+                printf("Username \"%s\" not exist!\n",username);
               }
               else if (account_list == findNode(account_list,username))
               {
@@ -542,7 +543,6 @@ void server_upload(int recfd, char *target_file, char **current_path) {
   strcpy(full_path, *current_path);
   strcat(full_path, "/");
   strcat(full_path, file_name);
-  printf("%s\n",full_path);
 
   // Initialize File Descriptor
   FILE *fd;
@@ -606,6 +606,43 @@ void server_upload(int recfd, char *target_file, char **current_path) {
   fclose(fd);
 }
 
+void server_rm(int recfd, char *target_file, char *response, char **current_path) {
+  if (target_file == NULL)
+  {
+    strcpy(response,"@no file name given");
+    return;
+  } 
+
+  char *full_path = malloc(strlen(*current_path) + strlen(target_file) + 2);
+  strcpy(full_path, *current_path);
+  strcat(full_path, "/");
+  strcat(full_path, target_file);
+  
+  FILE *fd;
+  if ((fd = fopen(full_path, "rb")) == NULL) {
+    respond(recfd, "@File open error");
+    fprintf(stderr, "Can't open %s\n", full_path);
+    free(full_path);
+    perror("");
+    return;
+  }
+
+  int ret = remove(full_path);
+  if(ret != 0) {
+    strcpy(response,"@Error: unable to delete the file/folder");
+    fclose(fd);
+    free(full_path);
+    perror("Error");
+    return;
+  } else {
+    printf("File deleted successfully\n");
+    strcpy(response,"@File deleted successfully");   
+  }
+  fclose(fd);
+  free(full_path);
+}
+
+
 void server_process(int recfd, char *full_command, char **current_path) {
   // Prepare
   char *delim = " "; //dấu cách phân định command
@@ -628,7 +665,11 @@ void server_process(int recfd, char *full_command, char **current_path) {
   } else if (begin_with(command,"mkdir")) {
     server_mkdir(recfd, context, response, current_path);
     respond(recfd,response);
-  } else {
+  } else if (begin_with(command,"rm")){
+    server_rm(recfd,context,response,current_path);
+    respond(recfd,response);
+  }
+  else {
     strcpy(response, "No such command: ");
     strcat(response, command);
     // gửi thông điệp (phản hồi) lại client
