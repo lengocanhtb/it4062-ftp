@@ -14,13 +14,19 @@
 #include <sys/stat.h>   //mkdir()
 #include <sys/wait.h>   //waitpid();
 #include <libgen.h>
+
 #include "account.h"
 
 #define MaxClient 20
 #define MAX 100
 
-int sock; //listenfd for server;
-
+ //listenfd for server;
+int is_regular_file(const char *path)
+{
+    struct stat path_stat;
+    stat(path, &path_stat);
+    return S_ISREG(path_stat.st_mode);
+}
 int dem(char *s,char t);
 void sig_chld(int signo);
 int begin_with(const char *str, const char *pre);
@@ -46,6 +52,7 @@ int main(int argc, const char *argv[]) {
   char str[MAX];
 
   // Initialize Addresses
+  int sock;
   struct sockaddr_in server_addr, client_addr;
   socklen_t client_addr_length = sizeof(client_addr);
   bzero(&server_addr, sizeof(server_addr));
@@ -87,12 +94,15 @@ int main(int argc, const char *argv[]) {
             // create client
             // printf("\n");
             while (getchar() != '\n');
-            do
-            {
+            printf("New Client Username: ");
+            fgets(username,MAX,stdin);
+            username[strcspn(username,"\n")] = '\0';
+            while (findNode(account_list,username) != NULL) {
+              printf("Client existed.Please try again\n");
               printf("New Client Username: ");
               fgets(username,MAX,stdin);
               username[strcspn(username,"\n")] = '\0';
-            } while (findNode(account_list,username) != NULL);         
+            }        
             
             printf("New Client Password: ");
             fgets(pass,MAX,stdin);
@@ -126,7 +136,7 @@ int main(int argc, const char *argv[]) {
               }
               else
               {
-                printf(stderr, "Created: %s\n", folder);
+                printf("Created: %s\n", folder);
                 printf("Folder %s is created",folder);
                 c = 1;
               }
@@ -494,7 +504,14 @@ void server_download(int recfd, char *target_file, char **current_path) {
   strcpy(full_path, *current_path);
   strcat(full_path, "/");
   strcat(full_path, target_file);
-
+  
+  if (is_regular_file(full_path) == 0)
+  {
+    respond(recfd,"@Cannot download a folder or file not existed");
+    fprintf(stderr, "%s is a folder or not existed\n",full_path);
+    // fclose(fd);
+    return;
+  }
   // Initialize File Descriptor, Buffer
   FILE *fd;
   if ((fd = fopen(full_path, "rb")) == NULL) {
@@ -549,7 +566,14 @@ void server_upload(int recfd, char *target_file, char **current_path) {
   strcpy(full_path, *current_path);
   strcat(full_path, "/");
   strcat(full_path, file_name);
-
+  if( access(full_path, F_OK ) == 0 ) {
+    // file exists
+    fprintf(stderr, "File already exists\n");
+    respond(recfd,"@File already exists");
+    free(full_path);
+    return;
+  } 
+  
   // Initialize File Descriptor
   FILE *fd;
   if ((fd = fopen(full_path, "wb")) == NULL) {
@@ -613,11 +637,11 @@ void server_upload(int recfd, char *target_file, char **current_path) {
 }
 
 void server_rm(int recfd, char *target_file, char *response, char **current_path) {
-  if (target_file == NULL)
-  {
-    strcpy(response,"@no file name given");
-    return;
-  } 
+  // if (target_file == NULL)
+  // {
+  //   strcpy(response,"@no file name given");
+  //   return;
+  // } 
 
   char *full_path = malloc(strlen(*current_path) + strlen(target_file) + 2);
   strcpy(full_path, *current_path);
