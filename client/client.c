@@ -250,6 +250,52 @@ void client_rm(int sock, char *buffer, char *target_file){
   } 
 }
 
+void client_move(int sock, char *buffer, char *target_file) {
+  // send command
+  if (send(sock, buffer, strlen(buffer) + 1, 0) == -1) {
+    fprintf(stderr, "can't send packet");
+    perror("");
+    return;
+  }
+
+  // receive response
+  char response[1024];
+  if (recv(sock, response, sizeof(response), 0) == -1) {
+    fprintf(stderr, "can't receive packet");
+    perror("");
+    return;
+  }
+  if (begin_with(response, "@")) {
+    printf("%s\n", &response[1]);
+    return;
+  } 
+
+  char target_path[MAX];
+  // send target folder
+  printf("Target directory path: ");
+  fgets(target_path,MAX,stdin);
+  target_path[strcspn(target_path,"\n")] = '\0';
+  if (send(sock, target_path, strlen(target_path) + 1, 0) == -1) {
+    fprintf(stderr, "can't send packet");
+    perror("");
+    return;
+  }
+
+  // receive response
+  memset(response, '\0', MAX);
+  if (recv(sock, response, sizeof(response), 0) == -1) {
+    fprintf(stderr, "can't receive packet");
+    perror("");
+    return;
+  }
+  if (begin_with(response, "@")) {
+    printf("%s\n", &response[1]);
+    return;
+  }
+  printf("%s: Moved\n",target_file);
+  return;
+} 
+
 void client_process(int sock, char *buffer, char **path) {
   // Prepare
   char *full_command = malloc(strlen(buffer) + 1);   
@@ -271,8 +317,9 @@ void client_process(int sock, char *buffer, char **path) {
     client_mkdir(sock,buffer,context);
   } else if (begin_with(command,"rm")) {
     client_rm(sock,buffer,context);
-  }  
-  else {
+  } else if (begin_with(command,"move")) {
+    client_move(sock,buffer,context);
+  } else {
     printf("No such command: %s\n", buffer);
   }
 

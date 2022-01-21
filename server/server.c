@@ -38,7 +38,8 @@ void server_download(int recfd, char *target_file, char **current_path);
 void server_upload(int recfd, char *target_file, char **current_path);
 void server_mkdir(int recfd,char *new_dir, char *respond, char **current_path);
 void server_process(int recfd, char *full_command, char **current_path);
-void server_rm(int recfd, char *full_command, char *target_file, char **current_path);
+void server_rm(int recfd, char *target_file, char *response, char **current_path);
+void server_move(int recfd, char *target_file, char **current_path);
 
 int main(int argc, const char *argv[]) {
   // check argument
@@ -663,6 +664,69 @@ void server_rm(int recfd, char *target_file, char *response, char **current_path
   free(full_path);
 }
 
+void server_move(int recfd, char *target_file, char **current_path) {
+  char *full_path = malloc(strlen(*current_path) + strlen(target_file) + 2);
+  strcpy(full_path, *current_path);
+  strcat(full_path, "/");
+  strcat(full_path, target_file);
+
+  char buffer[MAX];
+  strcpy(buffer,"move to");
+  respond(recfd,buffer);
+
+  memset(buffer,'\0',MAX);
+  int byte_receive;
+  if ((byte_receive=(recv(recfd, buffer, MAX, 0))) <= 0) {
+    fprintf(stderr, "Can't receive packet\n");
+    free(full_path);
+    close(recfd);
+    return;
+  }
+  buffer[byte_receive] = '\0';
+  char *new_path = malloc(strlen(buffer)+strlen(target_file)+2);
+  strcpy(new_path, buffer);
+  strcat(new_path, "/");
+  strcat(new_path, target_file);
+
+  FILE *fp1, *fp2;
+  fp1 = fopen(full_path, "r");
+  /* open the destination file in write mode */
+  fp2 = fopen(new_path, "w");
+
+  /* error handling */
+  if (!fp1) {
+          printf("Unable to open source file to read!!\n");
+          respond(recfd,"@server error\n");
+          fclose(fp2);
+          return;
+  }
+
+  if (!fp2) {
+          printf("Unable to open target file to write\n");
+          respond(recfd,"@server error\n");
+          return;
+  }
+  int ch;
+  /* copying contents of source file to target file */
+  while ((ch = fgetc(fp1)) != EOF) {
+          fputc(ch, fp2);
+  }
+
+  /* closing the opened files */
+  fclose(fp1);
+  fclose(fp2);
+
+  /* removing the source file */
+  remove(full_path);
+  free(full_path);
+  free(new_path);
+  printf("Success to move file\n");
+  respond(recfd,"Move success!");
+  return;
+  
+
+}
+
 void server_process(int recfd, char *full_command, char **current_path) {
   // Prepare
   char *delim = " "; //dấu cách phân định command
@@ -688,7 +752,12 @@ void server_process(int recfd, char *full_command, char **current_path) {
   } else if (begin_with(command,"rm")){
     server_rm(recfd,context,response,current_path);
     respond(recfd,response);
+  } else if (begin_with(command,"move"))
+  {
+    server_move(recfd,context,current_path);
+    // respond(recfd,response)
   }
+  
   else {
     strcpy(response, "No such command: ");
     strcat(response, command);
